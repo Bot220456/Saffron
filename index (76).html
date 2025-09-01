@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>জাফরান সাবান চ্যাটবট</title>
+  <style>
+    body {margin:0; font-family: Arial, sans-serif; background:#f5f5f5;}
+    .chatbox {max-width:420px; margin:auto; height:90vh; display:flex; flex-direction:column; border:1px solid #ddd; border-radius:12px; background:#fff; overflow:hidden;}
+
+    /* Header */
+    .header {display:flex; align-items:center; justify-content:space-between; background:#2e2e2e; color:#fff; padding:10px; border-bottom:1px solid #222;}
+    .header .back {font-size:22px; margin-right:8px; cursor:pointer;}
+    .header img {width:36px; height:36px; border-radius:50%; margin-right:10px;}
+    .header .text {flex:1;}
+    .header .name {font-weight:bold; display:block; font-size:17px; color:#fff;}
+    .header .status {font-size:13px; color:#ccc; display:flex; align-items:center;}
+    .header .status::before {content:""; width:8px; height:8px; background:green; border-radius:50%; display:inline-block; margin-right:5px;}
+    .header .actions span {margin-left:12px; font-size:20px; cursor:pointer;}
+
+    /* Messages */
+    .messages {flex:1; padding:12px; overflow-y:auto;}
+    .msg {margin:10px 0; display:flex; align-items:flex-end; font-size:16px;}
+    .msg.bot {justify-content:flex-start;}
+    .msg.user {justify-content:flex-end;}
+    .msg img.avatar {width:30px; height:30px; border-radius:50%; margin:0 6px;}
+    .bubble {max-width:75%; padding:12px 16px; border-radius:18px; font-size:16px; line-height:1.5; word-wrap:break-word;}
+    .bot .bubble {background:#f1f1f1; color:#000;}
+    .user .bubble {background:#0084ff; color:#fff;}
+
+    /* Options */
+    .options {margin:10px 0;}
+    .options button {background:#fff; border:1px solid #ddd; color:#000; padding:10px 16px; border-radius:20px; cursor:pointer; display:block; margin:6px 0; width:auto; max-width:70%; text-align:left; position:relative; font-size:16px;}
+    .options button:hover {background:#f5f5f5;}
+
+    /* Best Seller highlight */
+    .options button.best-seller {border:2px solid #ff4d4d; font-weight:bold; animation:pulse 1.5s infinite;}
+    .options button.best-seller::after {content:"Best Seller"; position:absolute; top:-10px; right:-5px; background:#ff4d4d; color:#fff; font-size:11px; padding:2px 6px; border-radius:10px;}
+    @keyframes pulse {0%{transform:scale(1); box-shadow:0 0 0 0 rgba(255,77,77,0.7);} 70%{transform:scale(1.05); box-shadow:0 0 10px 10px rgba(255,77,77,0);} 100%{transform:scale(1); box-shadow:0 0 0 0 rgba(255,77,77,0);}}
+
+    /* Form & Confirm */
+    #confirmBtn {width:100%; padding:14px; margin-top:10px; border-radius:20px; border:none; background:#0084ff; color:#fff; font-weight:bold; cursor:pointer; font-size:16px;}
+    input {width:95%; padding:12px; margin:6px 0; border-radius:8px; border:1px solid #ccc; outline:none; font-size:15px;}
+
+    /* Invoice */
+    .invoice {background:#fff; border-radius:12px; padding:16px; border:1px solid #ddd; font-size:16px; line-height:1.6;}
+    .invoice h3 {color:#0084ff; margin-top:0; border-bottom:1px solid #ddd; padding-bottom:6px; font-size:17px;}
+  </style>
+</head>
+<body>
+  <div class="chatbox">
+    <!-- Header -->
+    <div class="header">
+      <span class="back">←</span>
+      <img id="headerAvatar" src="https://i.postimg.cc/BbMBvQnY/IMG-20250815-WA0018.jpg" alt="avatar">
+      <div class="text">
+        <span class="name">জাফরান সাবান</span>
+        <span class="status" id="statusText">Active now</span>
+      </div>
+      <div class="actions">
+        <span class="call">📞</span>
+        <span class="menu">⋯</span>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div id="messages" class="messages"></div>
+  </div>
+
+  <script>
+    const BOT_AVATAR_URL = "https://i.postimg.cc/BbMBvQnY/IMG-20250815-WA0018.jpg";
+    const messages = document.getElementById("messages");
+    let selectedOffer = "";
+    let orderConfirmed = false;
+
+    const offerPrices = {
+      "১পিস জাফরান সাবান ৩৫০ টাকা": 350,
+      "২পিস সাবান ৫৫০ টাকা (সাথে ১টি সাবান ফ্রী)": 550,
+      "৩পিস সাবান ৮৫০ টাকা (সাথে ১টি নাইট ক্রিম ফ্রী)": 850
+    };
+
+    // ✅ হেডারে English টাইম
+    function updateTime() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString("en-US", {hour:'2-digit', minute:'2-digit'});
+      document.getElementById("statusText").innerText = "Active now · " + timeStr;
+    }
+    updateTime();
+    setInterval(updateTime, 60000);
+
+    function addMessage(text, sender="bot") {
+      const row = document.createElement("div");
+      row.className = `msg ${sender}`;
+
+      if(sender === "bot") {
+        const img = document.createElement("img");
+        img.src = BOT_AVATAR_URL;
+        img.className = "avatar";
+        row.appendChild(img);
+      }
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = text;
+      row.appendChild(bubble);
+
+      messages.appendChild(row);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addOptions(options, removable=true) {
+      const old = document.querySelector(".options");
+      if(old) old.remove();
+      const wrap = document.createElement("div");
+      wrap.className = "options";
+      options.forEach(opt => {
+        const btn = document.createElement("button");
+        btn.textContent = opt;
+
+        // ✅ Best Seller highlight
+        if(opt.includes("৫৫০")) {
+          btn.classList.add("best-seller");
+        }
+
+        btn.onclick = () => selectOption(opt, wrap, removable);
+        wrap.appendChild(btn);
+      });
+      messages.appendChild(wrap);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function selectOption(opt, optionsDiv, removable) {
+      if(orderConfirmed) return;
+      addMessage(opt, "user");
+      selectedOffer = opt;
+      if(removable && optionsDiv) optionsDiv.remove();
+
+      if(opt === "ছেলে" || opt === "মেয়ে") {
+        setTimeout(() => {
+          addMessage("✨ আমাদের জনপ্রিয় অফার গুলো দেখুন:\n👉 আপনার পছন্দের অফারটি সিলেক্ট করুন:");
+          addOptions(Object.keys(offerPrices), false);
+        }, 400);
+      }
+      if(opt.includes("পিস")) {
+        setTimeout(() => {
+          addMessage("📦 অর্ডার কনফার্ম করতে নিচের তথ্যগুলো দিন:");
+          renderForm();
+        }, 400);
+      }
+    }
+
+    function renderForm() {
+      const old = document.getElementById("orderForm");
+      if(old) old.remove();
+      const form = document.createElement("div");
+      form.id = "orderForm";
+      form.innerHTML = `
+        <input type="text" id="name" placeholder="👤 নাম">
+        <input type="text" id="phone" value="01" maxlength="11">
+        <input type="text" id="address" placeholder="🏠 ঠিকানা">
+        <button id="confirmBtn" onclick="submitOrder()">✅ অর্ডার কনফার্ম</button>`;
+      messages.appendChild(form);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function submitOrder() {
+      const name = document.getElementById("name").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+      const address = document.getElementById("address").value.trim();
+      const btn = document.getElementById("confirmBtn");
+
+      if(!name || !phone || !address) {alert("⚠️ সব ঘর পূরণ করতে হবে!"); return;}
+      if(!/^01\d{9}$/.test(phone)) {alert("⚠️ ফোন নাম্বার অবশ্যই ১১ ডিজিট হতে হবে!"); return;}
+
+      // ✅ Loading animation
+      btn.disabled = true;
+      btn.textContent = "⏳ অর্ডার সাবমিট হচ্ছে...";
+
+      const total = offerPrices[selectedOffer] || 0;
+
+      fetch("https://script.google.com/macros/s/AKfycbwSDS6mHwGrfmKMX6cQYCLetfApsKENLyVMqIsc1o4t8tOgECcl4r0G1NAFhk0c8fylsA/exec",
+      {method:"POST", mode:"no-cors", headers:{"Content-Type":"application/json"}, body:JSON.stringify({name,phone,address,offer:selectedOffer,total})})
+      .then(()=>{
+        btn.textContent = "✅ কনফার্ম হয়েছে";
+      });
+
+      messages.innerHTML = "";
+      const invoice = document.createElement("div");
+      invoice.className = "invoice";
+      invoice.innerHTML = `
+        <h3>🧾 অর্ডার কনফার্মেশন</h3>
+        <p>📍 নাম: ${name}</p>
+        <p>📍 ঠিকানা: ${address}</p>
+        <p>📍 ফোন: ${phone}</p>
+        <p>📍 অফার: ${selectedOffer}</p>
+        <p>📍 মোট বিল: ${total} টাকা</p>
+        <p>📢 ২/৩ দিনের মধ্যে পার্সেল ডেলিভারি হবে। ধন্যবাদ 🔰</p>`;
+      messages.appendChild(invoice);
+      orderConfirmed = true;
+    }
+
+    setTimeout(() => {
+      addMessage("🧼 আমাদের জাফরান সাবান ছেলে ও মেয়ে উভয়েই ব্যবহার করতে পারবে।");
+      addMessage("👉 আপনি কি ছেলে নাকি মেয়ে?");
+      addOptions(["ছেলে","মেয়ে"], true);
+    }, 400);
+  </script>
+</body>
+</html>
